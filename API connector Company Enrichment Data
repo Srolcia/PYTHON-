@@ -1,0 +1,42 @@
+import pandas as pd
+import requests
+import time
+
+# Your free API key from AbstractAPI
+API_KEY = "API"  # 🔁 Replace with your actual key
+
+# Load domains from the saved CSV
+df = pd.read_csv("Company_Domains.csv")
+
+# Add empty columns for enrichment data
+df["company_name"] = ""
+df["founder"] = ""
+df["industry"] = ""
+df["employee_range"] = ""
+
+# Function to get info from Abstract API
+def get_company_info(domain):
+    url = f"https://companyenrichment.abstractapi.com/v1/?api_key={API_KEY}&domain={domain}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    return {}
+
+# Loop through all domains
+for index, row in df.iterrows():
+    domain = row["domain"]
+    print(f"⏳ Looking up: {domain}")
+    data = get_company_info(domain)
+    
+    if data:
+        df.at[index, "company_name"] = data.get("name", "")
+        df.at[index, "founder"] = data.get("founder", "")
+        df.at[index, "industry"] = data.get("industry", "")
+        df.at[index, "employee_range"] = data.get("employee_range", "")
+    
+    # Respect free-tier limits: 1 request/sec
+    time.sleep(1)
+
+# Save results
+df.to_csv("founders_output.csv", index=False)
+print("✅ Done! Results saved to 'founders_output.csv'")
