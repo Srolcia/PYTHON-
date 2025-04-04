@@ -1,0 +1,72 @@
+import pandas as pd
+import requests
+import time
+import re
+
+# Load company names
+df = pd.read_csv("Company_Names.csv")
+df.rename(columns={"ReleaseBio": "company_name"}, inplace=True)
+
+# Add new fields
+df["founder_name"] = ""
+df["founder_snippet"] = ""
+df["founder_link"] = ""
+df["email_found"] = ""
+
+SERPAPI_KEY = "KEY"  # 🔑 Replace this
+
+# Helper function to try extracting founder name and email
+def extract_founder_and_email(snippet, title):
+    # Try to extract founder name from title or snippet
+    name = ""
+    email = ""
+
+    # Look for "Founder at XYZ" or "CEO at XYZ"
+    match = re.search(r"([A-Z][a-z]+\s[A-Z][a-z]+).*?Founder|CEO", title)
+    if match:
+        name = match.group(1)
+
+    # Look for email pattern
+    email_match = re.search(r"[a-zA-Z0-9.\-+_]+@[a-zA-Z0-9.\-+_]+\.[a-zA-Z]+", snippet)
+    if email_match:
+        email = email_match.group(0)
+
+    return name, email
+
+# SerpAPI query function
+def search_founder(company_name):
+    query = f"{company_name} founder site:linkedin.com/in"
+    url = "https://serpapi.com/search"
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": SERPAPI_KEY
+    }
+
+    response = requests.get(url, params=params)
+    results = response.json()
+
+    if "organic_results" in results and results["organic_results"]:
+        top = results["organic_results"][0]
+        title = top.get("title", "")
+        snippet = top.get("snippet", "")
+        link = top.get("link", "")
+        name, email = extract_founder_and_email(snippet, title)
+        return name, snippet, link, email
+
+    return "", "", "", ""
+
+# Loop through companies
+for index, row in df.iterrows():
+    company = row["company_name"]
+    print(f"🔎 Searching founder info for: {company}")
+    name, snippet, link, email = search_founder(company)
+    df.at[index, "founder_name"] = name
+    df.at[index, "founder_snippet"] = snippet
+    df.at[index, "founder_link"] = link
+    df.at[index, "email_found"] = email
+    time.sleep(1)
+
+# Save output
+df.to_csv("linkedin_founders_with_email.csv", index=False)
+print("✅ Saved to 'linkedin_founders_with_email.csv'")
